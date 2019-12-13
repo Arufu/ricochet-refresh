@@ -261,6 +261,13 @@ QByteArray AuthHiddenServiceChannelPrivate::getProofData(const QString &client)
     return clientHostname + serverHostname;
 }
 
+/**
+ * called when an auth packet is received
+ * the packet can either be a proof packet or a result packet
+ *      proof: the other side requests auth and sent the public key and signature
+ *      result: the other side verified our public key and signature sent, and returned the verfication result
+ * @param packet
+ */
 void AuthHiddenServiceChannel::receivePacket(const QByteArray &packet)
 {
     Data::AuthHiddenService::Packet message;
@@ -279,6 +286,11 @@ void AuthHiddenServiceChannel::receivePacket(const QByteArray &packet)
     }
 }
 
+/**
+ * extract public key and signature from message, do verification
+ * the result is reported by setting d->accepted to be true or false
+ * @param message message containing the public key and signature
+ */
 void AuthHiddenServiceChannel::handleProof(const Data::AuthHiddenService::Proof &message)
 {
     // declare d to be the private class of AuthHiddenServiceChannel
@@ -351,6 +363,12 @@ void AuthHiddenServiceChannel::handleProof(const Data::AuthHiddenService::Proof 
     closeChannel();
 }
 
+/**
+ * check result message, to see if our auth sent has been accepted
+ * the result is reported by setting d->accepted to be true or false
+ * if accepted and the other side is a known contact: grant auth
+ * @param message message containing the result
+ */
 void AuthHiddenServiceChannel::handleResult(const Data::AuthHiddenService::Result &message)
 {
     Q_D(AuthHiddenServiceChannel);
