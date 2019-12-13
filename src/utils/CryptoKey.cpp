@@ -74,6 +74,14 @@ void CryptoKey::clear()
     d = 0;
 }
 
+/**
+ * load key from a by bytearray (in PEM or DER), then save it in a RSA structure, stored in 'd', which
+ *  is a Shared Data containing the RSA key
+ * @param data the bytearray key data
+ * @param type PrivateKey or PublicKey
+ * @param format PER or DER
+ * @return success or not
+ */
 bool CryptoKey::loadFromData(const QByteArray &data, KeyType type, KeyFormat format)
 {
     RSA *key = NULL;
@@ -163,6 +171,11 @@ QByteArray CryptoKey::publicKeyDigest() const
     return re;
 }
 
+/**
+ * encode a PEM or DER public key (RSA) using openssl RSA lib
+ * @param format PEM or DER
+ * @return encoded key byte array
+ */
 QByteArray CryptoKey::encodedPublicKey(KeyFormat format) const
 {
     if (!isLoaded())
@@ -205,6 +218,11 @@ QByteArray CryptoKey::encodedPublicKey(KeyFormat format) const
     return QByteArray();
 }
 
+/**
+ * encode a PEM or DER private key (RSA) using openssl RSA lib
+ * @param format PEM or DER
+ * @return encoded key byte array
+ */
 QByteArray CryptoKey::encodedPrivateKey(KeyFormat format) const
 {
     if (!isLoaded() || !isPrivate())
@@ -247,6 +265,11 @@ QByteArray CryptoKey::encodedPrivateKey(KeyFormat format) const
     return QByteArray();
 }
 
+/**
+ * convert stored key to serviceID by encode the key's hash (digest) with base32
+ * serviceID is the onion address
+ * @return serviceID
+ */
 QString CryptoKey::torServiceID() const
 {
     if (!isLoaded())
@@ -268,6 +291,11 @@ QString CryptoKey::torServiceID() const
     return QString::fromLatin1(re);
 }
 
+/**
+ * sign the data's digest (a checksum of data by SHA256) with own private key
+ * @param data
+ * @return signature
+ */
 QByteArray CryptoKey::signData(const QByteArray &data) const
 {
     QByteArray digest(32, 0);
@@ -281,6 +309,11 @@ QByteArray CryptoKey::signData(const QByteArray &data) const
     return signSHA256(digest);
 }
 
+/**
+ * sign the digest with SHA256
+ * @param digest
+ * @return the signature
+ */
 QByteArray CryptoKey::signSHA256(const QByteArray &digest) const
 {
     if (!isPrivate())
@@ -300,6 +333,12 @@ QByteArray CryptoKey::signSHA256(const QByteArray &digest) const
     return re;
 }
 
+/**
+ * verify the data('s digest) against the signature, with own key
+ * @param data
+ * @param signature
+ * @return valid or not
+ */
 bool CryptoKey::verifyData(const QByteArray &data, QByteArray signature) const
 {
     QByteArray digest(32, 0);
@@ -314,6 +353,12 @@ bool CryptoKey::verifyData(const QByteArray &data, QByteArray signature) const
     return verifySHA256(digest, signature);
 }
 
+/**
+ * check data digest against signature with own key
+ * @param digest the data digest (a check sum of the data using SHA256)
+ * @param signature the signature to test
+ * @return valid or not
+ */
 bool CryptoKey::verifySHA256(const QByteArray &digest, QByteArray signature) const
 {
     if (!isLoaded())

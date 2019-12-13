@@ -53,10 +53,12 @@ QByteArray AddOnionCommand::build()
     QByteArray out("ADD_ONION");
 
     if (m_service->privateKey().isLoaded()) {
-        out += " RSA1024:";
+//        out += " RSA1024:";
+        out += " ED25519-V3:";
         out += m_service->privateKey().encodedPrivateKey(CryptoKey::DER).toBase64();
     } else {
-        out += " NEW:RSA1024";
+//        out += " NEW:RSA1024";
+        out += " NEW:ED25519-V3";
     }
 
     foreach (const HiddenService::Target &target, m_service->targets()) {
@@ -81,6 +83,10 @@ void AddOnionCommand::onReply(int statusCode, const QByteArray &data)
     }
 
     const QByteArray keyPrefix("PrivateKey=RSA1024:");
+    const QByteArray keyPrefixV3("PrivateKey=ED25519-V3:");
+    const QByteArray serviceIDPrefix("ServiceID=");
+
+
     if (data.startsWith(keyPrefix)) {
         QByteArray keyData(QByteArray::fromBase64(data.mid(keyPrefix.size())));
         CryptoKey key;
@@ -90,6 +96,10 @@ void AddOnionCommand::onReply(int statusCode, const QByteArray &data)
         }
 
         m_service->setPrivateKey(key);
+    } else if (data.startsWith(keyPrefixV3)) {
+        // todo
+    } else if (data.startsWith((serviceIDPrefix))) {
+        // todo
     }
 }
 
