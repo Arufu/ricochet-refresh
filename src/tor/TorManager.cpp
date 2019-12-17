@@ -318,9 +318,7 @@ bool TorManagerPrivate::createDefaultTorrc(const QString &path)
     QFile file(path);
     if (!file.open(QIODevice::WriteOnly))
         return false;
-    if (file.write(defaultTorrcContent) < 0)
-        return false;
-    return true;
+    return file.write(defaultTorrcContent) >= 0;
 }
 
 void TorManagerPrivate::setError(const QString &message)

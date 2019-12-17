@@ -1,0 +1,4 @@
+/home/haojun/Developers/ricochet-refresh/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+/home/haojun/Developers/ricochet-refresh/cmake-build-debug/CMakeFiles/ricochet-refresh.dir
+/home/haojun/Developers/ricochet-refresh/cmake-build-debug/CMakeFiles/edit_cache.dir
+/home/haojun/Developers/ricochet-refresh/cmake-build-debug/CMakeFiles/ricochet-refresh_autogen.dir

@@ -200,6 +200,8 @@ HEADERS += src/ui/MainWindow.h \
     src/tor/AuthenticateCommand.h \
     src/tor/SetConfCommand.h \
     src/tor/AddOnionCommand.h \
+    src/utils/CryptoKeyV3.h \
+    src/utils/Crypto_ED25519.h \
     src/utils/StringUtil.h \
     src/core/ContactsManager.h \
     src/core/ContactUser.h \
@@ -220,7 +222,8 @@ HEADERS += src/ui/MainWindow.h \
     src/ui/LinkedText.h \
     src/utils/Settings.h \
     src/utils/PendingOperation.h \
-    src/ui/LanguagesModel.h
+    src/ui/LanguagesModel.h \
+    src/utils/x25519_sizes.h
 
 SOURCES += src/protocol/Channel.cpp \
     src/protocol/ControlChannel.cpp \

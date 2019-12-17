@@ -84,7 +84,7 @@ void CryptoKey::clear()
  */
 bool CryptoKey::loadFromData(const QByteArray &data, KeyType type, KeyFormat format)
 {
-    RSA *key = NULL;
+    RSA *key = nullptr;
     clear();
 
     if (data.isEmpty())
@@ -94,18 +94,18 @@ bool CryptoKey::loadFromData(const QByteArray &data, KeyType type, KeyFormat for
         BIO *b = BIO_new_mem_buf((void*)data.constData(), -1);
 
         if (type == PrivateKey)
-            key = PEM_read_bio_RSAPrivateKey(b, NULL, NULL, NULL);
+            key = PEM_read_bio_RSAPrivateKey(b, nullptr, nullptr, nullptr);
         else
-            key = PEM_read_bio_RSAPublicKey(b, NULL, NULL, NULL);
+            key = PEM_read_bio_RSAPublicKey(b, nullptr, nullptr, nullptr);
 
         BIO_free(b);
     } else if (format == DER) {
         const uchar *dp = reinterpret_cast<const uchar*>(data.constData());
 
         if (type == PrivateKey)
-            key = d2i_RSAPrivateKey(NULL, &dp, data.size());
+            key = d2i_RSAPrivateKey(nullptr, &dp, data.size());
         else
-            key = d2i_RSAPublicKey(NULL, &dp, data.size());
+            key = d2i_RSAPublicKey(nullptr, &dp, data.size());
     } else {
         Q_UNREACHABLE();
     }
@@ -118,6 +118,12 @@ bool CryptoKey::loadFromData(const QByteArray &data, KeyType type, KeyFormat for
     d = new Data(key);
     return true;
 }
+
+bool CryptoKey::loadFromDataV3(const QByteArray &data) {
+
+    return false;
+}
+
 
 bool CryptoKey::loadFromFile(const QString &path, KeyType type, KeyFormat format)
 {
@@ -160,7 +166,7 @@ QByteArray CryptoKey::publicKeyDigest() const
 
     QByteArray re(20, 0);
     bool ok = SHA1(reinterpret_cast<const unsigned char*>(buf.constData()), buf.size(),
-         reinterpret_cast<unsigned char*>(re.data())) != NULL;
+         reinterpret_cast<unsigned char*>(re.data())) != nullptr;
 
     if (!ok)
     {
@@ -201,7 +207,7 @@ QByteArray CryptoKey::encodedPublicKey(KeyFormat format) const
         BUF_MEM_free(buf);
         return re;
     } else if (format == DER) {
-        uchar *buf = NULL;
+        uchar *buf = nullptr;
         int len = i2d_RSAPublicKey(d->key, &buf);
         if (len <= 0 || !buf) {
             BUG() << "Failed to encode public key in DER format";
@@ -231,7 +237,7 @@ QByteArray CryptoKey::encodedPrivateKey(KeyFormat format) const
     if (format == PEM) {
         BIO *b = BIO_new(BIO_s_mem());
 
-        if (!PEM_write_bio_RSAPrivateKey(b, d->key, NULL, NULL, 0, NULL, NULL)) {
+        if (!PEM_write_bio_RSAPrivateKey(b, d->key, nullptr, nullptr, 0, nullptr, nullptr)) {
             BUG() << "Failed to encode private key in PEM format";
             BIO_free(b);
             return QByteArray();
@@ -248,7 +254,7 @@ QByteArray CryptoKey::encodedPrivateKey(KeyFormat format) const
         BUF_MEM_free(buf);
         return re;
     } else if (format == DER) {
-        uchar *buf = NULL;
+        uchar *buf = nullptr;
         int len = i2d_RSAPrivateKey(d->key, &buf);
         if (len <= 0 || !buf) {
             BUG() << "Failed to encode private key in DER format";
@@ -300,7 +306,7 @@ QByteArray CryptoKey::signData(const QByteArray &data) const
 {
     QByteArray digest(32, 0);
     bool ok = SHA256(reinterpret_cast<const unsigned char*>(data.constData()), data.size(),
-                   reinterpret_cast<unsigned char*>(digest.data())) != NULL;
+                   reinterpret_cast<unsigned char*>(digest.data())) != nullptr;
     if (!ok) {
         qWarning() << "Digest for RSA signature failed";
         return QByteArray();
@@ -313,7 +319,7 @@ QByteArray CryptoKey::signData(const QByteArray &data) const
  * sign the digest with SHA256
  * @param digest
  * @return the signature
- */
+ * expanded form. */
 QByteArray CryptoKey::signSHA256(const QByteArray &digest) const
 {
     if (!isPrivate())
@@ -343,7 +349,7 @@ bool CryptoKey::verifyData(const QByteArray &data, QByteArray signature) const
 {
     QByteArray digest(32, 0);
     bool ok = SHA256(reinterpret_cast<const unsigned char*>(data.constData()), data.size(),
-                     reinterpret_cast<unsigned char*>(digest.data())) != NULL;
+                     reinterpret_cast<unsigned char*>(digest.data())) != nullptr;
 
     if (!ok) {
         qWarning() << "Digest for RSA verify failed";

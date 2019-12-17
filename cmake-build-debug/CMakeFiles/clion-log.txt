@@ -1,0 +1,5 @@
+/bin/cmake -DCMAKE_BUILD_TYPE=Debug -G "CodeBlocks - Unix Makefiles" /home/haojun/Developers/ricochet-refresh
+-- Found OpenSSL: /usr/lib/libcrypto.so   
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/haojun/Developers/ricochet-refresh/cmake-build-debug

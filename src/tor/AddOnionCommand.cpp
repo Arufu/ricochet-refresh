@@ -34,6 +34,7 @@
 #include "tor/HiddenService.h"
 #include "utils/CryptoKey.h"
 #include "utils/StringUtil.h"
+#include "lib/crypt_ops/crypto_ed25519.h"
 
 using namespace Tor;
 
@@ -53,12 +54,12 @@ QByteArray AddOnionCommand::build()
     QByteArray out("ADD_ONION");
 
     if (m_service->privateKey().isLoaded()) {
-//        out += " RSA1024:";
-        out += " ED25519-V3:";
+        out += " RSA1024:";
+//        out += " ED25519-V3:";
         out += m_service->privateKey().encodedPrivateKey(CryptoKey::DER).toBase64();
     } else {
-//        out += " NEW:RSA1024";
-        out += " NEW:ED25519-V3";
+        out += " NEW:RSA1024";
+//        out += " NEW:ED25519-V3";
     }
 
     foreach (const HiddenService::Target &target, m_service->targets()) {
@@ -77,29 +78,43 @@ QByteArray AddOnionCommand::build()
 void AddOnionCommand::onReply(int statusCode, const QByteArray &data)
 {
     TorControlCommand::onReply(statusCode, data);
-    if (statusCode != 250) {
-        m_errorMessage = QString::fromLatin1(data);
-        return;
+    switch (statusCode) {
+        case 251:
+            m_errorMessage = QString::fromUtf8("statusCode 251: Client auth credentials for this onion service already existed and replaced.");
+            return;
+        case 252:
+            m_errorMessage = QString::fromUtf8("statusCode 252: Added client auth credentials and successfully decrypted a cached descriptor.");
+            return;
+        case 512:
+            m_errorMessage = QString::fromUtf8("statusCode 512: Syntax error in 'HSAddress', or 'PrivateKeyBlob' or 'Nickname'");
+            return;
+        case 551:
+            m_errorMessage = QString::fromUtf8("statusCode 551: Client with with this 'Nickname' already exists");
+            return;
+        case 552:
+            m_errorMessage = QString::fromUtf8("statusCode 552: Unrecognized KeyType");
+            return;
     }
 
+    const QByteArray serviceIDPrefix("ServiceID=");
     const QByteArray keyPrefix("PrivateKey=RSA1024:");
     const QByteArray keyPrefixV3("PrivateKey=ED25519-V3:");
-    const QByteArray serviceIDPrefix("ServiceID=");
-
 
     if (data.startsWith(keyPrefix)) {
+        // Sign v2 key with RSA methods in OPENSSL
         QByteArray keyData(QByteArray::fromBase64(data.mid(keyPrefix.size())));
         CryptoKey key;
         if (!key.loadFromData(keyData, CryptoKey::PrivateKey, CryptoKey::DER)) {
             m_errorMessage = QStringLiteral("Key decoding failed");
             return;
         }
-
         m_service->setPrivateKey(key);
-    } else if (data.startsWith(keyPrefixV3)) {
-        // todo
-    } else if (data.startsWith((serviceIDPrefix))) {
-        // todo
+    }
+    else if (data.startsWith(keyPrefixV3)) {
+        // TODO: use ed25519_sign(). Figure out what arguments it needs
+    }
+    else if (data.startsWith((serviceIDPrefix))) {
+        // TODO:
     }
 }
 

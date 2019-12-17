@@ -55,6 +55,7 @@ public:
     ~CryptoKey();
 
     bool loadFromData(const QByteArray &data, KeyType type, KeyFormat format = PEM);
+    bool loadFromDataV3(const QByteArray &data);
     bool loadFromFile(const QString &path, KeyType type, KeyFormat format = PEM);
     void clear();
 
@@ -88,6 +89,17 @@ private:
     };
 
     QExplicitlySharedDataPointer<Data> d;
+
+//    struct DataV3 : public QSharedData
+//    {
+//        typedef struct evp_pkey_st EVP_PKEY;
+//        EVP_PKEY *key;
+
+//        DataV3(EVP_PKEY *k = nullptr) : key(k) { }
+//        ~DataV3();
+//    };
+
+//    QExplicitlySharedDataPointer<DataV3> dv3;
 };
 
 QByteArray torControlHashedPassword(const QByteArray &password);
