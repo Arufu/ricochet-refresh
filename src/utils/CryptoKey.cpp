@@ -51,10 +51,6 @@ void RSA_get0_factors(const RSA *r, const BIGNUM **p, const BIGNUM **q)
 void base32_encode(char *dest, unsigned destlen, const char *src, unsigned srclen);
 bool base32_decode(char *dest, unsigned destlen, const char *src, unsigned srclen);
 
-CryptoKey::CryptoKey()
-{
-}
-
 CryptoKey::~CryptoKey()
 {
     clear();
@@ -69,9 +65,14 @@ CryptoKey::Data::~Data()
     }
 }
 
+/**
+ * clear all values in the key
+ */
 void CryptoKey::clear()
 {
     d = 0;
+    v3privateKey = "";
+    v3serviceID = "";
 }
 
 /**
@@ -87,7 +88,7 @@ bool CryptoKey::loadFromData(const QByteArray &data, KeyType type, KeyFormat for
     RSA *key = NULL;
     clear();
 
-    if (data.isEmpty())
+    if (version != V2 || data.isEmpty())
         return false;
 
     if (format == PEM) {
@@ -119,6 +120,31 @@ bool CryptoKey::loadFromData(const QByteArray &data, KeyType type, KeyFormat for
     return true;
 }
 
+/**
+ * load a v3 key or serviceID from a by std::string.
+ * @param type V3PrivateKey or V3ServiceID
+ * @param data a string containing either the key or serviceID
+ * @return success or not
+ */
+bool CryptoKey::loadFromDataV3(const std::string &data, CryptoKey::KeyType type) {
+
+    clear();
+
+    if (version != V3 || data.empty())
+        return false;
+
+    if (type == V3ServiceID) {
+        this->v3serviceID = data;
+        std::string temp = this->getV3PublicKey();
+        return true;
+    } else if (type == V3PrivateKey) {
+        this->v3privateKey = data;
+        return true;
+    } else {
+        return false;
+    }
+}
+
 bool CryptoKey::loadFromFile(const QString &path, KeyType type, KeyFormat format)
 {
     QFile file(path);
@@ -135,22 +161,107 @@ bool CryptoKey::loadFromFile(const QString &path, KeyType type, KeyFormat format
     return loadFromData(data, type, format);
 }
 
+/**
+ * check if a key or service id is stored in this CryptoKey
+ * @return stored or not
+ */
+bool CryptoKey::isLoaded() const{
+    if (version == V2) {
+        return d.data() && d->key != 0;
+    } else if (version == V3) {
+        return ((v3privateKey.empty() && !v3serviceID.empty()) ||
+                (v3serviceID.empty() && !v3privateKey.empty()));
+    }
+    return false;
+}
+
+/**
+ * check if this CryptoKey is storing a private key
+ * Different logic applies for v2 and v3 onion service
+ * @return private key or not
+ */
 bool CryptoKey::isPrivate() const
 {
     if (!isLoaded()) {
       return false;
     } else {
-        const BIGNUM *p, *q;
-        RSA_get0_factors(d->key, &p, &q);
-        return (p != 0);
+        if (version == V2) {
+            const BIGNUM *p, *q;
+            RSA_get0_factors(d->key, &p, &q);
+            return (p != 0);
+        } else if (version == V3) {
+            return v3privateKey.length() == CryptoKey::V3PrivateKeyLength;
+        } else {
+            return false;
+        }
     }
 }
 
+/**
+ * check if a key is a v3 serviceID
+ * @return serviceID or not
+ */
+bool CryptoKey::isV3serviceID() const
+{
+    if (!isLoaded()) {
+        return false;
+    } else {
+        return v3serviceID.size() == CryptoKey::V3ServiceIDLength;
+    }
+}
+
+/**
+ * get public key from a v3 service ID
+ * the public key is just the first 52 chars of the service ID (remove last 4 chars)
+ * @return a v3 public key
+ */
+std::string CryptoKey::getV3PublicKey() const {
+    if (!isLoaded() || !isV3serviceID()) {
+        return "";
+    } else {
+        return v3serviceID.substr(0, CryptoKey::V3PublicKeyLength);
+    }
+}
+
+/**
+ * get the decoded v3 public key, as a byte array
+ * the encoding/decoding is done with base32
+ * @return public key in bytes
+ */
+QByteArray CryptoKey::getDecodedV3PublicKey() const{
+    if (!isLoaded() || !isV3serviceID()) {
+        return QByteArray();
+    } else {
+        // todo
+    }
+}
+
+/**
+ * get the decoded v3 private key, as a byte array
+ * the encoding/decoding is done with base64
+ * @return private key in bytes
+ */
+QByteArray CryptoKey::getDecodedV3PrivateKey() const{
+    if (!isLoaded() || version != V3 || !isPrivate()) {
+        return QByteArray();
+    } else {
+        // todo
+    }
+}
+
+/**
+ * return the number of bits of s v2 key
+ * @return number of bits
+ */
 int CryptoKey::bits() const
 {
     return isLoaded() ? RSA_bits(d->key) : 0;
 }
 
+/**
+ * hash a public key into a digest, used only for v2
+ * @return the digest
+ */
 QByteArray CryptoKey::publicKeyDigest() const
 {
     if (!isLoaded())
@@ -172,7 +283,9 @@ QByteArray CryptoKey::publicKeyDigest() const
 }
 
 /**
- * encode a PEM or DER public key (RSA) using openssl RSA lib
+ * encode a public key
+ * for v2: PEM or DER public key (RSA) using openssl RSA lib
+ * for v3: todo
  * @param format PEM or DER
  * @return encoded key byte array
  */
@@ -180,46 +293,51 @@ QByteArray CryptoKey::encodedPublicKey(KeyFormat format) const
 {
     if (!isLoaded())
         return QByteArray();
+    if (version == V3) {
+        // todo
+    } else if (version == V2) {
+        if (format == PEM) {
+            BIO *b = BIO_new(BIO_s_mem());
 
-    if (format == PEM) {
-        BIO *b = BIO_new(BIO_s_mem());
+            if (!PEM_write_bio_RSAPublicKey(b, d->key)) {
+                BUG() << "Failed to encode public key in PEM format";
+                BIO_free(b);
+                return QByteArray();
+            }
 
-        if (!PEM_write_bio_RSAPublicKey(b, d->key)) {
-            BUG() << "Failed to encode public key in PEM format";
+            BUF_MEM *buf;
+            BIO_get_mem_ptr(b, &buf);
+
+            /* Close BIO, but don't free buf. */
+            (void)BIO_set_close(b, BIO_NOCLOSE);
             BIO_free(b);
-            return QByteArray();
+
+            QByteArray re((const char *)buf->data, (int)buf->length);
+            BUF_MEM_free(buf);
+            return re;
+        } else if (format == DER) {
+            uchar *buf = NULL;
+            int len = i2d_RSAPublicKey(d->key, &buf);
+            if (len <= 0 || !buf) {
+                BUG() << "Failed to encode public key in DER format";
+                return QByteArray();
+            }
+
+            QByteArray re((const char*)buf, len);
+            OPENSSL_free(buf);
+            return re;
+        } else {
+            Q_UNREACHABLE();
         }
-
-        BUF_MEM *buf;
-        BIO_get_mem_ptr(b, &buf);
-
-        /* Close BIO, but don't free buf. */
-        (void)BIO_set_close(b, BIO_NOCLOSE);
-        BIO_free(b);
-
-        QByteArray re((const char *)buf->data, (int)buf->length);
-        BUF_MEM_free(buf);
-        return re;
-    } else if (format == DER) {
-        uchar *buf = NULL;
-        int len = i2d_RSAPublicKey(d->key, &buf);
-        if (len <= 0 || !buf) {
-            BUG() << "Failed to encode public key in DER format";
-            return QByteArray();
-        }
-
-        QByteArray re((const char*)buf, len);
-        OPENSSL_free(buf);
-        return re;
     } else {
-        Q_UNREACHABLE();
+        return QByteArray();
     }
-
-    return QByteArray();
 }
 
 /**
- * encode a PEM or DER private key (RSA) using openssl RSA lib
+ * encode a private key
+ * for v2: PEM or DER private key (RSA) using openssl RSA lib
+ * for v3: todo
  * @param format PEM or DER
  * @return encoded key byte array
  */
@@ -228,67 +346,80 @@ QByteArray CryptoKey::encodedPrivateKey(KeyFormat format) const
     if (!isLoaded() || !isPrivate())
         return QByteArray();
 
-    if (format == PEM) {
-        BIO *b = BIO_new(BIO_s_mem());
+    if (version == V3) {
+        // todo
+    } else if (version == V2) {
+        if (format == PEM) {
+            BIO *b = BIO_new(BIO_s_mem());
 
-        if (!PEM_write_bio_RSAPrivateKey(b, d->key, NULL, NULL, 0, NULL, NULL)) {
-            BUG() << "Failed to encode private key in PEM format";
+            if (!PEM_write_bio_RSAPrivateKey(b, d->key, NULL, NULL, 0, NULL, NULL)) {
+                BUG() << "Failed to encode private key in PEM format";
+                BIO_free(b);
+                return QByteArray();
+            }
+
+            BUF_MEM *buf;
+            BIO_get_mem_ptr(b, &buf);
+
+            /* Close BIO, but don't free buf. */
+            (void)BIO_set_close(b, BIO_NOCLOSE);
             BIO_free(b);
-            return QByteArray();
+
+            QByteArray re((const char *)buf->data, (int)buf->length);
+            BUF_MEM_free(buf);
+            return re;
+        } else if (format == DER) {
+            uchar *buf = NULL;
+            int len = i2d_RSAPrivateKey(d->key, &buf);
+            if (len <= 0 || !buf) {
+                BUG() << "Failed to encode private key in DER format";
+                return QByteArray();
+            }
+
+            QByteArray re((const char*)buf, len);
+            OPENSSL_free(buf);
+            return re;
+        } else {
+            Q_UNREACHABLE();
         }
-
-        BUF_MEM *buf;
-        BIO_get_mem_ptr(b, &buf);
-
-        /* Close BIO, but don't free buf. */
-        (void)BIO_set_close(b, BIO_NOCLOSE);
-        BIO_free(b);
-
-        QByteArray re((const char *)buf->data, (int)buf->length);
-        BUF_MEM_free(buf);
-        return re;
-    } else if (format == DER) {
-        uchar *buf = NULL;
-        int len = i2d_RSAPrivateKey(d->key, &buf);
-        if (len <= 0 || !buf) {
-            BUG() << "Failed to encode private key in DER format";
-            return QByteArray();
-        }
-
-        QByteArray re((const char*)buf, len);
-        OPENSSL_free(buf);
-        return re;
     } else {
-        Q_UNREACHABLE();
+        return QByteArray();
     }
-
-    return QByteArray();
 }
 
 /**
- * convert stored key to serviceID by encode the key's hash (digest) with base32
- * serviceID is the onion address
+ * return the serviceID from the key
+ * v2: encode the key's hash (digest) with base32
+ *      serviceID is the onion address, obtained from the first 16 chars from above
+ * v3: the service id is stored
  * @return serviceID
  */
 QString CryptoKey::torServiceID() const
 {
-    if (!isLoaded())
+    // for v3, the service id is stored explicitly
+    if (version == V3) {
+        return QLatin1String(v3serviceID.c_str());
+    } else if (version == V2) {
+        if (!isLoaded()){
+            return QString();}
+
+        QByteArray digest = publicKeyDigest();
+        if (digest.isNull())
+            return QString();
+
+        static const int hostnameDigestSize = 10;
+        static const int hostnameEncodedSize = 16;
+
+        QByteArray re(hostnameEncodedSize+1, 0);
+        base32_encode(re.data(), re.size(), digest.constData(), hostnameDigestSize);
+
+        // Chop extra null byte
+        re.chop(1);
+
+        return QString::fromLatin1(re);
+    } else {
         return QString();
-
-    QByteArray digest = publicKeyDigest();
-    if (digest.isNull())
-        return QString();
-
-    static const int hostnameDigestSize = 10;
-    static const int hostnameEncodedSize = 16;
-
-    QByteArray re(hostnameEncodedSize+1, 0);
-    base32_encode(re.data(), re.size(), digest.constData(), hostnameDigestSize);
-
-    // Chop extra null byte
-    re.chop(1);
-
-    return QString::fromLatin1(re);
+    }
 }
 
 /**
@@ -298,19 +429,24 @@ QString CryptoKey::torServiceID() const
  */
 QByteArray CryptoKey::signData(const QByteArray &data) const
 {
-    QByteArray digest(32, 0);
-    bool ok = SHA256(reinterpret_cast<const unsigned char*>(data.constData()), data.size(),
-                   reinterpret_cast<unsigned char*>(digest.data())) != NULL;
-    if (!ok) {
-        qWarning() << "Digest for RSA signature failed";
-        return QByteArray();
-    }
+    if (version == V3) {
+        // todo
+    } else if (version == V2) {
+        QByteArray digest(32, 0);
+        bool ok = SHA256(reinterpret_cast<const unsigned char*>(data.constData()), data.size(),
+                         reinterpret_cast<unsigned char*>(digest.data())) != NULL;
+        if (!ok) {
+            qWarning() << "Digest for RSA signature failed";
+            return QByteArray();
+        }
 
-    return signSHA256(digest);
+        return signSHA256(digest);
+    }
+    return QByteArray();
 }
 
 /**
- * sign the digest with SHA256
+ * sign the digest with SHA256, only used by v2
  * @param digest
  * @return the signature
  */
@@ -341,16 +477,21 @@ QByteArray CryptoKey::signSHA256(const QByteArray &digest) const
  */
 bool CryptoKey::verifyData(const QByteArray &data, QByteArray signature) const
 {
-    QByteArray digest(32, 0);
-    bool ok = SHA256(reinterpret_cast<const unsigned char*>(data.constData()), data.size(),
-                     reinterpret_cast<unsigned char*>(digest.data())) != NULL;
+    if (version == V3) {
+        // todo
+    } else if (version == V2) {
+        QByteArray digest(32, 0);
+        bool ok = SHA256(reinterpret_cast<const unsigned char*>(data.constData()), data.size(),
+                         reinterpret_cast<unsigned char*>(digest.data())) != NULL;
 
-    if (!ok) {
-        qWarning() << "Digest for RSA verify failed";
-        return false;
+        if (!ok) {
+            qWarning() << "Digest for RSA verify failed";
+            return false;
+        }
+
+        return verifySHA256(digest, signature);
     }
-
-    return verifySHA256(digest, signature);
+    return false;
 }
 
 /**
@@ -361,14 +502,19 @@ bool CryptoKey::verifyData(const QByteArray &data, QByteArray signature) const
  */
 bool CryptoKey::verifySHA256(const QByteArray &digest, QByteArray signature) const
 {
-    if (!isLoaded())
-        return false;
+    if (version == V3) {
+        // todo
+    } else if (version == V2) {
+        if (!isLoaded())
+            return false;
 
-    int r = RSA_verify(NID_sha256, reinterpret_cast<const uchar*>(digest.constData()), digest.size(),
-                       reinterpret_cast<uchar*>(signature.data()), signature.size(), d->key);
-    if (r != 1)
-        return false;
-    return true;
+        int r = RSA_verify(NID_sha256, reinterpret_cast<const uchar*>(digest.constData()), digest.size(),
+                           reinterpret_cast<uchar*>(signature.data()), signature.size(), d->key);
+        if (r != 1)
+            return false;
+        return true;
+    }
+    return false;
 }
 
 /* Cryptographic hash of a password as expected by Tor's HashedControlPassword */

@@ -94,12 +94,22 @@ void AddOnionCommand::onReply(int statusCode, const QByteArray &data)
             m_errorMessage = QStringLiteral("Key decoding failed");
             return;
         }
-
         m_service->setPrivateKey(key);
     } else if (data.startsWith(keyPrefixV3)) {
-        // todo
-    } else if (data.startsWith((serviceIDPrefix))) {
-        // todo
+        CryptoKey key(CryptoKey::V3);
+        std::string keyData = data.toStdString()
+                .substr(keyPrefixV3.size());
+        key.loadFromDataV3(keyData, CryptoKey::V3PrivateKey);
+    } else if ((data.size() == CryptoKey::V3ServiceIDLength + serviceIDPrefix.size())
+            && data.startsWith((serviceIDPrefix))) {
+        // store the v3 service ID
+        // to get public key from serviceID:
+        //  1. remove prefix and last 4 char, the rest is public key in base32.
+        //  2. decode to get the 32byte key
+        CryptoKey key(CryptoKey::V3);
+        std::string keyData = data.toStdString()
+                .substr(serviceIDPrefix.size());
+        key.loadFromDataV3(keyData, CryptoKey::V3ServiceID);
     }
 }
 
