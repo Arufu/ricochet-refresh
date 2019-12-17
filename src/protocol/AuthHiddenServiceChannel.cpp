@@ -321,6 +321,7 @@ void AuthHiddenServiceChannel::handleProof(const Data::AuthHiddenService::Proof 
     } else if (publicKeyData.size() > 150) {
         qWarning() << "Received invalid public key (size" << publicKeyData.size() << ") on" << type();
     } else if (!publicKey.loadFromData(publicKeyData, CryptoKey::PublicKey, CryptoKey::DER)) {
+        // todo add v3 support
         qWarning() << "Unable to parse public key from" << type();
     } else if (publicKey.bits() != 1024) {
         qWarning() << "Received invalid public key (" << publicKey.bits() << "bits) on" << type();

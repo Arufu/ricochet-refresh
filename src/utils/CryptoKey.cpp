@@ -78,6 +78,7 @@ void CryptoKey::clear()
 /**
  * load key from a by bytearray (in PEM or DER), then save it in a RSA structure, stored in 'd', which
  *  is a Shared Data containing the RSA key
+ * will set version to v2.
  * @param data the bytearray key data
  * @param type PrivateKey or PublicKey
  * @param format PER or DER
@@ -87,6 +88,8 @@ bool CryptoKey::loadFromData(const QByteArray &data, KeyType type, KeyFormat for
 {
     RSA *key = NULL;
     clear();
+
+    this->version = V2;
 
     if (version != V2 || data.isEmpty())
         return false;
@@ -122,6 +125,7 @@ bool CryptoKey::loadFromData(const QByteArray &data, KeyType type, KeyFormat for
 
 /**
  * load a v3 key or serviceID from a by std::string.
+ * will set version to v3.
  * @param type V3PrivateKey or V3ServiceID
  * @param data a string containing either the key or serviceID
  * @return success or not
@@ -130,7 +134,9 @@ bool CryptoKey::loadFromDataV3(const std::string &data, CryptoKey::KeyType type)
 
     clear();
 
-    if (version != V3 || data.empty())
+    this->version = V3;
+
+    if (data.empty())
         return false;
 
     if (type == V3ServiceID) {
@@ -285,7 +291,7 @@ QByteArray CryptoKey::publicKeyDigest() const
 /**
  * encode a public key
  * for v2: PEM or DER public key (RSA) using openssl RSA lib
- * for v3: todo
+ * for v3: simply build a byte array from the stored public key as it is already encoded (base32)
  * @param format PEM or DER
  * @return encoded key byte array
  */
@@ -293,8 +299,10 @@ QByteArray CryptoKey::encodedPublicKey(KeyFormat format) const
 {
     if (!isLoaded())
         return QByteArray();
+
     if (version == V3) {
-        // todo
+        // for v3, simply build a byte array from the stored public key as it is already encoded.
+        return QByteArray::fromStdString(this->getV3PublicKey());
     } else if (version == V2) {
         if (format == PEM) {
             BIO *b = BIO_new(BIO_s_mem());
@@ -337,7 +345,7 @@ QByteArray CryptoKey::encodedPublicKey(KeyFormat format) const
 /**
  * encode a private key
  * for v2: PEM or DER private key (RSA) using openssl RSA lib
- * for v3: todo
+ * for v3: simply build a byte array from the stored private key as it is already encoded (base64)
  * @param format PEM or DER
  * @return encoded key byte array
  */
@@ -347,7 +355,7 @@ QByteArray CryptoKey::encodedPrivateKey(KeyFormat format) const
         return QByteArray();
 
     if (version == V3) {
-        // todo
+        return QByteArray::fromStdString(this->v3privateKey);
     } else if (version == V2) {
         if (format == PEM) {
             BIO *b = BIO_new(BIO_s_mem());
@@ -391,7 +399,7 @@ QByteArray CryptoKey::encodedPrivateKey(KeyFormat format) const
  * return the serviceID from the key
  * v2: encode the key's hash (digest) with base32
  *      serviceID is the onion address, obtained from the first 16 chars from above
- * v3: the service id is stored
+ * v3: the service id is stored so just return it
  * @return serviceID
  */
 QString CryptoKey::torServiceID() const

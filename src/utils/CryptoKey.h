@@ -55,9 +55,12 @@ public:
         V3ServiceID,
     };
 
+    // V3 keys can be encoded in either base32 (public key/service id) or base64 (private key hash)
+    // should call isPrivate() or isV3serviceID() to check
     enum KeyFormat {
         PEM,
-        DER
+        DER,
+        V3encoded,
     };
 
     // the version of the onion service used, since v2 and v3 have totally different types of keys
